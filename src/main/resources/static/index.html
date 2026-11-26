@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Observatory — Expression Evaluation &amp; Visualization</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Subtle ambient starfield / observatory instrument canvas -->
+  <canvas id="observatory-canvas" aria-hidden="true"></canvas>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-emblem" aria-hidden="true">
+          <svg viewBox="0 0 36 36" width="32" height="32" fill="none">
+            <circle cx="18" cy="18" r="15" stroke="url(#obs-grad)" stroke-width="1.5" stroke-dasharray="4 3" />
+            <circle cx="18" cy="18" r="8" stroke="#38bdf8" stroke-width="1.5" />
+            <circle cx="18" cy="18" r="2.5" fill="#f3d59b" />
+            <circle cx="28" cy="10" r="2" fill="#a78bfa" />
+            <defs>
+              <linearGradient id="obs-grad" x1="0" y1="0" x2="36" y2="36">
+                <stop offset="0%" stop-color="#38bdf8" />
+                <stop offset="100%" stop-color="#a78bfa" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <h1>The Observatory</h1>
+          <p class="subtitle">Expression Evaluation &amp; Visualization System</p>
+        </div>
+      </div>
+
+      <div class="status-cluster">
+        <div id="health-badge" class="health-badge checking" role="status" aria-live="polite">
+          <span class="dot" aria-hidden="true"></span>
+          <span id="health-text">Checking API…</span>
+        </div>
+        <button type="button" id="toggle-settings-btn" class="btn btn-ghost btn-sm" aria-expanded="false" aria-controls="api-settings-panel">
+          API Settings
+        </button>
+      </div>
+    </header>
+
+    <section id="api-settings-panel" class="glass-card settings-panel hidden" aria-label="API Configuration">
+      <div class="settings-row">
+        <label for="api-base-input">Backend API Base URL</label>
+        <div class="settings-input-group">
+          <input id="api-base-input" type="url" placeholder="http://localhost:8080" autocomplete="off" />
+          <button type="button" id="save-api-btn" class="btn btn-secondary btn-sm">Apply &amp; Check</button>
+        </div>
+        <p class="hint">Leave blank to use the current origin (recommended when served by Spring Boot on port 8080).</p>
+      </div>
+    </section>
+
+    <main class="workspace">
+      <!-- Left Column: Input Controls -->
+      <section class="panel-column" aria-label="Expression Input">
+        <div class="glass-card">
+          <div class="card-header">
+            <h2>Expression</h2>
+            <div class="demo-pills" role="group" aria-label="Example presets">
+              <button type="button" id="btn-demo-1" class="pill-btn" title="Load illustrative example (expected: -24)">Demo 1</button>
+              <button type="button" id="btn-demo-2" class="pill-btn" title="Load nested parentheses example (expected: 6)">Demo 2</button>
+              <button type="button" id="btn-demo-err" class="pill-btn pill-warn" title="Load malformed expression to test error reporting">Malformed</button>
+            </div>
+          </div>
+
+          <form id="evaluate-form" novalidate>
+            <div class="field-group">
+              <label for="expression-input" class="sr-only">Mathematical Expression</label>
+              <textarea
+                id="expression-input"
+                name="expression"
+                rows="3"
+                spellcheck="false"
+                autocomplete="off"
+                placeholder="Enter expression, e.g. -(a + b) * 2 + 30 / 5"
+                aria-describedby="expression-constraints"
+              ></textarea>
+              <p id="expression-constraints" class="hint">
+                Supports <code>+</code>, <code>−</code>, <code>×</code>, <code>÷</code>, parentheses, unary minus, decimals, and named variables (max 2,000 tokens). Press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to evaluate.
+              </p>
+            </div>
+
+            <div class="variables-section">
+              <div class="variables-header">
+                <h3>Variables</h3>
+                <button type="button" id="add-var-btn" class="btn btn-ghost btn-sm">+ Add Variable</button>
+              </div>
+              <div id="variables-list" class="variables-list" aria-live="polite"></div>
+              <p id="no-vars-msg" class="hint hidden">No variables defined. Click "+ Add Variable" if your expression uses named variables.</p>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" id="evaluate-btn" class="btn btn-primary">
+                <span class="btn-label">Evaluate Expression</span>
+              </button>
+              <button type="button" id="clear-btn" class="btn btn-secondary">Clear / Reset</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Right Column: Evaluation Output -->
+      <section class="panel-column" aria-label="Evaluation Output">
+        <!-- Initial State -->
+        <div id="state-initial" class="glass-card state-card">
+          <div class="empty-state">
+            <div class="empty-orbit" aria-hidden="true">◎</div>
+            <h2>Ready for Observation</h2>
+            <p>Enter an expression and optional variables, or load <strong>Demo 1</strong> to inspect the result, postfix notation, intermediate steps, expression tree, and parsing trace.</p>
+          </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="state-loading" class="glass-card state-card hidden" role="status" aria-live="polite">
+          <div class="loading-state">
+            <div class="spinner" aria-hidden="true"></div>
+            <p>Sending expression to Java evaluator…</p>
+          </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="state-error" class="glass-card state-card error-card hidden" role="alert">
+          <div class="error-header">
+            <span id="error-code-badge" class="error-badge">ERROR</span>
+            <h2>Evaluation Failed</h2>
+          </div>
+          <p id="error-message" class="error-message"></p>
+          <div id="error-pointer-box" class="error-pointer-box hidden">
+            <pre id="error-pointer-pre"></pre>
+          </div>
+        </div>
+
+        <!-- Success State -->
+        <div id="state-success" class="results-stack hidden" aria-live="polite">
+          <!-- Result Hero -->
+          <div class="glass-card result-hero">
+            <div>
+              <span class="eyebrow">Computed Result</span>
+              <div id="result-value" class="result-value">—</div>
+            </div>
+            <div class="postfix-box">
+              <span class="eyebrow">Postfix (RPN)</span>
+              <code id="postfix-value" class="postfix-code">—</code>
+            </div>
+          </div>
+
+          <!-- Organized Views Tabs -->
+          <div class="glass-card">
+            <div class="tabs" role="tablist" aria-label="Evaluation details">
+              <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="steps">Intermediate Steps</button>
+              <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="tree">Expression Tree</button>
+              <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="trace">Parsing Trace</button>
+            </div>
+
+            <div id="tab-steps" class="tab-panel active" role="tabpanel">
+              <ol id="steps-list" class="steps-list"></ol>
+            </div>
+
+            <div id="tab-tree" class="tab-panel hidden" role="tabpanel">
+              <pre id="tree-output" class="tree-output"></pre>
+            </div>
+
+            <div id="tab-trace" class="tab-panel hidden" role="tabpanel">
+              <ol id="trace-list" class="trace-list"></ol>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

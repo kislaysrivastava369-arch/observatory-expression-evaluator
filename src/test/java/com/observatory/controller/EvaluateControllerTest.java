@@ -186,6 +186,14 @@ class EvaluateControllerTest {
     }
 
     @Test
+    @DisplayName("GET / — serves the Observatory frontend")
+    void servesFrontend() throws Exception {
+        mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("The Observatory")));
+    }
+
+    @Test
     @DisplayName("POST /api/evaluate — response includes all required fields")
     void responseStructure() throws Exception {
         String json = """
