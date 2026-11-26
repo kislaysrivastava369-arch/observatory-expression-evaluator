@@ -1,0 +1,24 @@
+# .gitignore for The Observatory (Java / Maven / Spring Boot)
+
+# Build output
+target/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Maven wrapper downloaded jars
+.mvn/wrapper/maven-wrapper.jar
+
+# Logs
+*.log
